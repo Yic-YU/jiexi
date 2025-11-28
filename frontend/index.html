@@ -1122,7 +1122,9 @@
     // ========= WS =========
     function connectWS() {
       try {
-        ws = new WebSocket("ws://localhost:8000/ws/parse");
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const host = window.location.host; // 跟随当前页面域名+端口
+        ws = new WebSocket(`${protocol}//${host}/ws/parse`);
       } catch (e) {
         appendLog("创建 WebSocket 失败: " + e);
         setWsStatus("WebSocket: 创建失败", false);
