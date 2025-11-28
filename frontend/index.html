@@ -476,118 +476,85 @@
       <div class="card">
         <h2>
           MAVLink 数据包 - 编辑（可篡改）
-          <span class="tag"><span class="tag-dot"></span> RAW + 关键字段</span>
+          <span class="tag"><span class="tag-dot"></span> 同左侧字段，可直接修改</span>
         </h2>
 
         <h3>网络层（UDP）</h3>
         <div class="section-grid">
           <div class="field">
-            <label for="mav-target-ip">目标 IP</label>
-            <input id="mav-target-ip" placeholder="默认使用源 IP" />
+            <label for="edit-mav-ip-src">源 IP（发送目标）</label>
+            <input id="edit-mav-ip-src" placeholder="默认使用左侧源 IP" />
           </div>
           <div class="field">
-            <label for="mav-target-port">目标端口</label>
-            <input id="mav-target-port" placeholder="例如 14550" />
+            <label for="edit-mav-udp-sport">源端口（发送目标端口）</label>
+            <input id="edit-mav-udp-sport" placeholder="默认使用左侧源端口" />
           </div>
           <div class="field">
-            <label for="mav-src-port">源端口（可选）</label>
-            <input id="mav-src-port" placeholder="留空则由系统分配" />
-          </div>
-        </div>
-
-        <h3>消息头编辑</h3>
-        <div class="section-grid">
-          <div class="field">
-            <label for="mav-edit-sysid">sysid（系统 ID）</label>
-            <input id="mav-edit-sysid" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-compid">compid（部件 ID）</label>
-            <input id="mav-edit-compid" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-seq">seq（序号）</label>
-            <input id="mav-edit-seq" />
+            <label for="edit-mav-udp-proto">协议</label>
+            <input id="edit-mav-udp-proto" placeholder="UDP" />
           </div>
         </div>
 
-        <h3>关键字段编辑（位置 / 速度 / 姿态）</h3>
+        <h3>基础信息</h3>
         <div class="section-grid">
           <div class="field">
-            <label for="mav-edit-lat">lat（纬度，原始值）</label>
-            <input id="mav-edit-lat" />
+            <label for="edit-mav-proto">协议类型</label>
+            <input id="edit-mav-proto" />
           </div>
           <div class="field">
-            <label for="mav-edit-lon">lon（经度，原始值）</label>
-            <input id="mav-edit-lon" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-alt">alt（高度，原始值）</label>
-            <input id="mav-edit-alt" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-relative-alt">relative_alt（相对高）</label>
-            <input id="mav-edit-relative-alt" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-x">x</label>
-            <input id="mav-edit-x" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-y">y</label>
-            <input id="mav-edit-y" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-z">z</label>
-            <input id="mav-edit-z" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-vx">vx</label>
-            <input id="mav-edit-vx" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-vy">vy</label>
-            <input id="mav-edit-vy" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-vz">vz</label>
-            <input id="mav-edit-vz" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-roll">roll</label>
-            <input id="mav-edit-roll" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-pitch">pitch</label>
-            <input id="mav-edit-pitch" />
-          </div>
-          <div class="field">
-            <label for="mav-edit-yaw">yaw</label>
-            <input id="mav-edit-yaw" />
+            <label for="edit-mav-msg-count">消息数量</label>
+            <input id="edit-mav-msg-count" />
           </div>
         </div>
 
         <h3>
-          RAW HEX 编辑
-          <button id="btn-mav-copy-raw" class="mini-btn" type="button">从左侧拷贝 HEX</button>
+          当前 MAVLink 消息（可编辑）
+          <span class="tag"><span class="tag-dot"></span> 与左侧保持同步</span>
         </h3>
         <div class="section-grid">
           <div class="field">
-            <label for="mav-payload-hex">MAVLink 帧 HEX（可编辑）</label>
-            <textarea id="mav-payload-hex"></textarea>
+            <label for="mav-edit-msg-name">消息名</label>
+            <input id="mav-edit-msg-name" />
           </div>
           <div class="field">
-            <label for="mav-payload-text">按 UTF-8 解析的文本</label>
-            <textarea id="mav-payload-text"></textarea>
+            <label for="mav-edit-msg-id">消息 ID</label>
+            <input id="mav-edit-msg-id" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-sysid">sysid</label>
+            <input id="mav-edit-sysid" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-compid">compid</label>
+            <input id="mav-edit-compid" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-seq">seq</label>
+            <input id="mav-edit-seq" />
           </div>
         </div>
 
-        <p style="font-size:11px;color:#9ca3af;margin-top:6px;">
-          提示：lat / lon / alt 等字段是 <strong>原始 MAVLink 数值</strong>（例如 GLOBAL_POSITION_INT 中 lat/lon 为 1e-7 度）。
-          目前前端只负责展示和篡改，实际重打包由后端根据 <code>field_overrides</code> 等字段实现。
-        </p>
+        <h3>
+          原始 HEX（可编辑）
+          <button id="btn-mav-copy-raw" class="mini-btn" type="button">从左侧拷贝 HEX</button>
+        </h3>
+        <div class="field">
+          <label for="mav-payload-hex">MAVLink 帧 HEX</label>
+          <textarea id="mav-payload-hex"></textarea>
+        </div>
+        <div class="field">
+          <label for="mav-payload-text">按 UTF-8 解析的文本</label>
+          <textarea id="mav-payload-text"></textarea>
+        </div>
+
+        <h3>字段明细（JSON，可编辑）</h3>
+        <div class="field">
+          <label for="mav-edit-fields">当前消息字段</label>
+          <textarea id="mav-edit-fields" style="min-height:120px;"></textarea>
+        </div>
 
         <div class="actions">
+          <button id="btn-mav-copy-all" type="button">同步左侧当前数据</button>
           <button id="btn-mav-send" class="primary" type="button">发送修改后的 MAVLink 数据</button>
         </div>
       </div>
@@ -691,31 +658,23 @@
     const mavMsgSelect        = document.getElementById("mav-msg-select");
 
     // MAVLink 编辑
-    const mavTargetIpInput    = document.getElementById("mav-target-ip");
-    const mavTargetPortInput  = document.getElementById("mav-target-port");
-    const mavSrcPortInput     = document.getElementById("mav-src-port");
+    const mavEditIpInput      = document.getElementById("edit-mav-ip-src");
+    const mavEditPortInput    = document.getElementById("edit-mav-udp-sport");
+    const mavEditProtoInput   = document.getElementById("edit-mav-udp-proto");
+    const mavEditProtoTypeInput = document.getElementById("edit-mav-proto");
+    const mavEditMsgCountInput = document.getElementById("edit-mav-msg-count");
 
+    const mavEditMsgNameInput = document.getElementById("mav-edit-msg-name");
+    const mavEditMsgIdInput   = document.getElementById("mav-edit-msg-id");
     const mavEditSysidInput   = document.getElementById("mav-edit-sysid");
     const mavEditCompidInput  = document.getElementById("mav-edit-compid");
     const mavEditSeqInput     = document.getElementById("mav-edit-seq");
-
-    const mavEditLatInput     = document.getElementById("mav-edit-lat");
-    const mavEditLonInput     = document.getElementById("mav-edit-lon");
-    const mavEditAltInput     = document.getElementById("mav-edit-alt");
-    const mavEditRelAltInput  = document.getElementById("mav-edit-relative-alt");
-    const mavEditXInput       = document.getElementById("mav-edit-x");
-    const mavEditYInput       = document.getElementById("mav-edit-y");
-    const mavEditZInput       = document.getElementById("mav-edit-z");
-    const mavEditVxInput      = document.getElementById("mav-edit-vx");
-    const mavEditVyInput      = document.getElementById("mav-edit-vy");
-    const mavEditVzInput      = document.getElementById("mav-edit-vz");
-    const mavEditRollInput    = document.getElementById("mav-edit-roll");
-    const mavEditPitchInput   = document.getElementById("mav-edit-pitch");
-    const mavEditYawInput     = document.getElementById("mav-edit-yaw");
+    const mavEditFieldsTextarea = document.getElementById("mav-edit-fields");
 
     const mavPayloadHexTextarea  = document.getElementById("mav-payload-hex");
     const mavPayloadTextTextarea = document.getElementById("mav-payload-text");
     const btnMavCopyRaw   = document.getElementById("btn-mav-copy-raw");
+    const btnMavCopyAll   = document.getElementById("btn-mav-copy-all");
     const btnMavSend      = document.getElementById("btn-mav-send");
 
     // 底部
@@ -842,12 +801,17 @@
       origMavIpSrcInput.value   = ip;
       origMavUdpSportInput.value= port;
       origMavUdpProtoInput.value= "UDP";
+      mavEditIpInput.value      = ip;
+      mavEditPortInput.value    = port;
+      mavEditProtoInput.value   = "UDP";
 
       const isMav = !!mav.is_mavlink;
       const msgCount = Array.isArray(mav.messages) ? mav.messages.length : 0;
 
       origMavProtoInput.value    = isMav ? "MAVLink" : "未知/非法";
       origMavMsgCountInput.value = msgCount + "";
+      mavEditProtoTypeInput.value = origMavProtoInput.value;
+      mavEditMsgCountInput.value  = origMavMsgCountInput.value;
 
       const rawHex = mav.raw_hex || result.raw_hex || "";
       origMavRawHexTextarea.value = rawHex;
@@ -855,10 +819,6 @@
       // 默认把 RAW 拷贝到右侧编辑区 + 文本
       mavPayloadHexTextarea.value = rawHex;
       mavPayloadTextTextarea.value = hexToText(rawHex);
-
-      // 目标 IP/端口默认用源 IP/端口
-      mavTargetIpInput.value   = ip;
-      mavTargetPortInput.value = port;
 
       // 刷新消息下拉框
       while (mavMsgSelect.firstChild) {
@@ -902,6 +862,12 @@
         origMavCompidInput.value  = "";
         origMavSeqInput.value     = "";
         origMavFieldsTextarea.value = "无有效 MAVLink 消息";
+        mavEditMsgNameInput.value = "";
+        mavEditMsgIdInput.value   = "";
+        mavEditSysidInput.value   = "";
+        mavEditCompidInput.value  = "";
+        mavEditSeqInput.value     = "";
+        mavEditFieldsTextarea.value = "";
         return;
       }
 
@@ -913,6 +879,12 @@
         origMavCompidInput.value  = "";
         origMavSeqInput.value     = "";
         origMavFieldsTextarea.value = "非正常消息（BAD_DATA 等）";
+        mavEditMsgNameInput.value = "";
+        mavEditMsgIdInput.value   = "";
+        mavEditSysidInput.value   = "";
+        mavEditCompidInput.value  = "";
+        mavEditSeqInput.value     = "";
+        mavEditFieldsTextarea.value = "";
         return;
       }
 
@@ -937,23 +909,35 @@
     }
 
     function fillMavEditFromFields(header, fields) {
-      mavEditSysidInput.value  = safeField(header, "sysid");
-      mavEditCompidInput.value = safeField(header, "compid");
-      mavEditSeqInput.value    = safeField(header, "seq");
+      mavEditMsgNameInput.value = safeField(header, "msg_name");
+      mavEditMsgIdInput.value   = safeField(header, "msg_id");
+      mavEditSysidInput.value   = safeField(header, "sysid");
+      mavEditCompidInput.value  = safeField(header, "compid");
+      mavEditSeqInput.value     = safeField(header, "seq");
 
-      mavEditLatInput.value        = safeField(fields, "lat");
-      mavEditLonInput.value        = safeField(fields, "lon");
-      mavEditAltInput.value        = safeField(fields, "alt");
-      mavEditRelAltInput.value     = safeField(fields, "relative_alt");
-      mavEditXInput.value          = safeField(fields, "x");
-      mavEditYInput.value          = safeField(fields, "y");
-      mavEditZInput.value          = safeField(fields, "z");
-      mavEditVxInput.value         = safeField(fields, "vx");
-      mavEditVyInput.value         = safeField(fields, "vy");
-      mavEditVzInput.value         = safeField(fields, "vz");
-      mavEditRollInput.value       = safeField(fields, "roll");
-      mavEditPitchInput.value      = safeField(fields, "pitch");
-      mavEditYawInput.value        = safeField(fields, "yaw");
+      if (fields && typeof fields === "object") {
+        mavEditFieldsTextarea.value = JSON.stringify(fields, null, 2);
+      } else {
+        mavEditFieldsTextarea.value = "";
+      }
+    }
+
+    function copyMavFromLeft() {
+      mavEditIpInput.value        = origMavIpSrcInput.value;
+      mavEditPortInput.value      = origMavUdpSportInput.value;
+      mavEditProtoInput.value     = origMavUdpProtoInput.value || "UDP";
+      mavEditProtoTypeInput.value = origMavProtoInput.value;
+      mavEditMsgCountInput.value  = origMavMsgCountInput.value;
+
+      mavEditMsgNameInput.value   = origMavMsgNameInput.value;
+      mavEditMsgIdInput.value     = origMavMsgIdInput.value;
+      mavEditSysidInput.value     = origMavSysidInput.value;
+      mavEditCompidInput.value    = origMavCompidInput.value;
+      mavEditSeqInput.value       = origMavSeqInput.value;
+
+      mavPayloadHexTextarea.value  = origMavRawHexTextarea.value;
+      mavPayloadTextTextarea.value = hexToText(origMavRawHexTextarea.value);
+      mavEditFieldsTextarea.value  = origMavFieldsTextarea.value;
     }
 
     // ========= 底部总览表 =========
@@ -1119,31 +1103,28 @@
       if (compidStr !== "") header_overrides.compid = Number(compidStr);
       if (seqStr !== "") header_overrides.seq = Number(seqStr);
 
-      const field_overrides = {};
-      function addFieldOverride(inputEl, name) {
-        const v = inputEl.value.trim();
-        if (v === "") return;
-        const n = Number(v);
-        field_overrides[name] = Number.isNaN(n) ? v : n;
+      let field_overrides = {};
+      const fieldsText = mavEditFieldsTextarea.value.trim();
+      if (fieldsText) {
+        try {
+          const parsed = JSON.parse(fieldsText);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            alert("字段 JSON 需要是对象（key-value 结构）");
+            return null;
+          }
+          field_overrides = parsed;
+        } catch (e) {
+          alert("字段 JSON 解析失败，请检查格式");
+          return null;
+        }
       }
-      addFieldOverride(mavEditLatInput, "lat");
-      addFieldOverride(mavEditLonInput, "lon");
-      addFieldOverride(mavEditAltInput, "alt");
-      addFieldOverride(mavEditRelAltInput, "relative_alt");
-      addFieldOverride(mavEditXInput, "x");
-      addFieldOverride(mavEditYInput, "y");
-      addFieldOverride(mavEditZInput, "z");
-      addFieldOverride(mavEditVxInput, "vx");
-      addFieldOverride(mavEditVyInput, "vy");
-      addFieldOverride(mavEditVzInput, "vz");
-      addFieldOverride(mavEditRollInput, "roll");
-      addFieldOverride(mavEditPitchInput, "pitch");
-      addFieldOverride(mavEditYawInput, "yaw");
 
       const payloadHex = mavPayloadHexTextarea.value.replace(/\s+/g, "");
-      const targetIp   = mavTargetIpInput.value.trim();
-      const targetPort = mavTargetPortInput.value.trim();
-      const srcPort    = mavSrcPortInput.value.trim();
+      const targetIp   = mavEditIpInput.value.trim();
+      const targetPort = mavEditPortInput.value.trim();
+      const udpProto   = mavEditProtoInput.value.trim() || "UDP";
+      const msgName    = (mavEditMsgNameInput.value.trim() || header.msg_name || null);
+      const msgIdStr   = mavEditMsgIdInput.value.trim();
 
       return {
         action: "modify_and_send_mavlink",  // 后端需要按这个 action 实现打包发送
@@ -1151,12 +1132,13 @@
         original_packet_id: latestMavlinkPacket.packet_id || null,
         target_ip: targetIp || null,
         target_port: targetPort ? Number(targetPort) : null,
-        src_port: srcPort ? Number(srcPort) : null,
         msg_index: msgIndex,
-        msg_name: header.msg_name || null,
+        msg_name: msgName,
+        msg_id: msgIdStr ? Number(msgIdStr) : (header.msg_id ?? null),
         header_overrides,
         field_overrides,
         raw_hex: payloadHex || null,
+        udp_proto: udpProto,
       };
     }
 
@@ -1180,6 +1162,7 @@
         btnTCopyPayload.disabled = false;
         btnTCopyAll.disabled = false;
         btnMavCopyRaw.disabled = false;
+        btnMavCopyAll.disabled = false;
         btnMavSend.disabled    = false;
       };
 
@@ -1193,6 +1176,7 @@
         btnTCopyPayload.disabled = true;
         btnTCopyAll.disabled = true;
         btnMavCopyRaw.disabled = true;
+        btnMavCopyAll.disabled = true;
         btnMavSend.disabled    = true;
         setTimeout(connectWS, 3000);
       };
@@ -1289,6 +1273,11 @@
       mavPayloadHexTextarea.value = rawHex;
       mavPayloadTextTextarea.value = hexToText(rawHex);
       appendLog("已将 MAVLink RAW HEX 拷贝到右侧编辑区");
+    });
+    btnMavCopyAll.addEventListener("click", () => {
+      if (!latestMavlinkPacket) { alert("还没有 MAVLink 数据包"); return; }
+      copyMavFromLeft();
+      appendLog("已同步左侧 MAVLink 字段到右侧编辑表单");
     });
 
     btnMavSend.addEventListener("click", () => {
