@@ -1,0 +1,1312 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>数据包解析与编辑器</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #050607;
+      color: #f5f5f5;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0 0 8px 0;
+    }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 16px;
+      gap: 12px;
+    }
+    .status-pill {
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: #222;
+    }
+    .status-pill.ok { color: #4ade80; }
+    .status-pill.err { color: #f97373; }
+
+    .row-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: #111827;
+      border-radius: 12px;
+      padding: 12px 14px 14px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    }
+    .card h2 {
+      font-size: 15px;
+      margin: 0 0 8px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .card h3 {
+      font-size: 13px;
+      margin: 10px 0 4px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .section-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 12px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .field label {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    .field input,
+    .field select,
+    .field textarea {
+      background: #020617;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      padding: 5px 8px;
+      font-size: 12px;
+      color: #e5e7eb;
+      outline: none;
+    }
+    .field textarea {
+      min-height: 70px;
+      resize: vertical;
+      font-family: Consolas, monospace;
+    }
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 1px rgba(59,130,246,0.5);
+    }
+    .field input[readonly],
+    .field textarea[readonly],
+    .field input[disabled],
+    .field textarea[disabled] {
+      opacity: 0.9;
+      cursor: default;
+      background: #020617;
+      border-color: #1f2937;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      background: #1f2937;
+      color: #9ca3af;
+      gap: 4px;
+    }
+    .tag-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #22c55e;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
+    button {
+      border-radius: 999px;
+      border: none;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #1f2937;
+      color: #e5e7eb;
+    }
+    button.primary { background: #2563eb; }
+    button.primary:hover { background: #1d4ed8; }
+    button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: .4; cursor: default; }
+
+    .mini-btn {
+      padding: 2px 8px;
+      font-size: 10px;
+      border-radius: 999px;
+      background: #1f2937;
+      color: #9ca3af;
+    }
+    .mini-btn:hover { filter: brightness(1.2); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    thead { background: #030712; }
+    th, td {
+      padding: 4px 6px;
+      border-bottom: 1px solid #111827;
+      text-align: left;
+    }
+    tbody tr:nth-child(even) { background: #020617; }
+
+    .log {
+      margin-top: 10px;
+      font-size: 11px;
+      white-space: pre-wrap;
+      background: #020617;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      padding: 8px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .pill {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #111827;
+      color: #9ca3af;
+    }
+    .layout-bottom {
+      margin-top: 8px;
+    }
+    @media (max-width: 960px) {
+      .row-two { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>数据包解析与编辑器</h1>
+  <div class="status-bar">
+    <div>
+      <span id="ws-status" class="status-pill">WebSocket: 连接中...</span>
+      <span id="packet-count" class="status-pill">已接收数据包: 0</span>
+    </div>
+    <div>
+      <span class="pill">当前数据包接收时间：<span id="packet-ts">-</span></span>
+    </div>
+  </div>
+
+  <!-- ========= 上半部分：传统数据包 ========= -->
+  <h2 style="font-size:14px;margin:0 0 6px 2px;color:#9ca3af;">传统数据包</h2>
+  <div id="traditional-section">
+    <div class="row-two">
+      <!-- 左：传统数据包 原始（只读） -->
+      <div class="card">
+        <h2>
+          传统数据包 - 原始（只读）
+          <span class="tag"><span class="tag-dot"></span> 后端解析结果</span>
+        </h2>
+
+        <h3>链路层（Ethernet）</h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="orig-t-eth-src">源 MAC（只读）</label>
+            <input id="orig-t-eth-src" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-t-eth-dst">目的 MAC（只读）</label>
+            <input id="orig-t-eth-dst" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-t-eth-type">以太网类型 (0x..)（只读）</label>
+            <input id="orig-t-eth-type" readonly disabled />
+          </div>
+        </div>
+
+        <h3>网络层（IP）</h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="orig-t-ip-src">源 IP（只读）</label>
+            <input id="orig-t-ip-src" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-t-ip-dst">目的 IP（只读）</label>
+            <input id="orig-t-ip-dst" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-t-ip-proto">协议号（只读）</label>
+            <input id="orig-t-ip-proto" readonly disabled />
+          </div>
+        </div>
+
+        <h3>传输层（TCP / UDP）</h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="orig-t-l4-type">协议（只读）</label>
+            <input id="orig-t-l4-type" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-t-l4-sport">源端口（只读）</label>
+            <input id="orig-t-l4-sport" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-t-l4-dport">目的端口（只读）</label>
+            <input id="orig-t-l4-dport" readonly disabled />
+          </div>
+        </div>
+
+        <h3>应用层载荷</h3>
+        <div class="field">
+          <label for="orig-t-payload-hex">载荷 HEX（只读）</label>
+          <textarea id="orig-t-payload-hex" readonly disabled></textarea>
+        </div>
+        <div class="field">
+          <label for="orig-t-payload-text">载荷文本（UTF-8，只读）</label>
+          <textarea id="orig-t-payload-text" readonly disabled></textarea>
+        </div>
+      </div>
+
+      <!-- 右：传统数据包 编辑 -->
+      <div class="card">
+        <h2>
+          传统数据包 - 编辑（可篡改）
+          <span class="tag"><span class="tag-dot"></span> 当前传统包可修改</span>
+        </h2>
+
+        <h3>
+          链路层（Ethernet）
+          <button id="btn-t-copy-eth" class="mini-btn" type="button">拷贝链路层</button>
+        </h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="t-eth-src">源 MAC</label>
+            <input id="t-eth-src" />
+          </div>
+          <div class="field">
+            <label for="t-eth-dst">目的 MAC</label>
+            <input id="t-eth-dst" />
+          </div>
+          <div class="field">
+            <label for="t-eth-type">以太网类型 (0x..)</label>
+            <input id="t-eth-type" />
+          </div>
+        </div>
+
+        <h3>
+          网络层（IP）
+          <button id="btn-t-copy-ip" class="mini-btn" type="button">拷贝网络层</button>
+        </h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="t-ip-src">源 IP</label>
+            <input id="t-ip-src" />
+          </div>
+          <div class="field">
+            <label for="t-ip-dst">目的 IP</label>
+            <input id="t-ip-dst" />
+          </div>
+          <div class="field">
+            <label for="t-ip-proto">协议号</label>
+            <input id="t-ip-proto" />
+          </div>
+        </div>
+
+        <h3>
+          传输层（TCP / UDP）
+          <button id="btn-t-copy-l4" class="mini-btn" type="button">拷贝传输层</button>
+        </h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="t-l4-type">协议</label>
+            <select id="t-l4-type">
+              <option value="auto">自动（按解析结果）</option>
+              <option value="TCP">TCP</option>
+              <option value="UDP">UDP</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="t-l4-sport">源端口</label>
+            <input id="t-l4-sport" />
+          </div>
+          <div class="field">
+            <label for="t-l4-dport">目的端口</label>
+            <input id="t-l4-dport" />
+          </div>
+        </div>
+
+        <h3>
+          应用层载荷
+          <button id="btn-t-copy-payload" class="mini-btn" type="button">拷贝载荷</button>
+        </h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="t-payload-hex">编辑载荷 HEX</label>
+            <textarea id="t-payload-hex"></textarea>
+          </div>
+          <div class="field">
+            <label for="t-payload-text">编辑载荷文本（UTF-8）</label>
+            <textarea id="t-payload-text"></textarea>
+          </div>
+        </div>
+
+        <h3>发送配置</h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="t-target-ip">目标 IP（输入或选择）</label>
+            <input id="t-target-ip" list="t-target-ip-list" placeholder="例如：192.168.1.100" />
+            <datalist id="t-target-ip-list">
+              <option value="192.168.0.10"></option>
+              <option value="192.168.0.20"></option>
+              <option value="10.0.0.5"></option>
+            </datalist>
+          </div>
+          <div class="field">
+            <label for="t-packet-id">数据包 ID（可选，用于匹配原始包）</label>
+            <input id="t-packet-id" placeholder="由后端分配的唯一 ID" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="btn-t-copy-all" type="button">拷贝全部层</button>
+          <button id="btn-t-send" class="primary" type="button">重新封装并发送</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========= 下半部分：MAVLink 数据包 ========= -->
+  <h2 style="font-size:14px;margin:8px 0 6px 2px;color:#9ca3af;">MAVLink 数据包</h2>
+  <div id="mavlink-section">
+    <div class="row-two">
+      <!-- 左：MAVLink 原始（只读） -->
+      <div class="card">
+        <h2>
+          MAVLink 数据包 - 原始（只读）
+          <span class="tag"><span class="tag-dot"></span> 用 pymavlink 解析</span>
+        </h2>
+
+        <h3>网络层（UDP）</h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="orig-mav-ip-src">源 IP</label>
+            <input id="orig-mav-ip-src" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-mav-udp-sport">源端口</label>
+            <input id="orig-mav-udp-sport" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-mav-udp-proto">协议</label>
+            <input id="orig-mav-udp-proto" readonly disabled />
+          </div>
+        </div>
+
+        <h3>基础信息</h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="orig-mav-proto">协议类型</label>
+            <input id="orig-mav-proto" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-mav-msg-count">消息数量</label>
+            <input id="orig-mav-msg-count" readonly disabled />
+          </div>
+        </div>
+
+        <h3>
+          当前 MAVLink 消息
+          <select id="mav-msg-select"
+                  style="font-size:11px;padding:2px 4px;border-radius:6px;background:#020617;border:1px solid #1f2937;color:#e5e7eb;">
+            <option value="0">消息 #0</option>
+          </select>
+        </h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="orig-mav-msg-name">消息名</label>
+            <input id="orig-mav-msg-name" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-mav-msg-id">消息 ID</label>
+            <input id="orig-mav-msg-id" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-mav-sysid">sysid</label>
+            <input id="orig-mav-sysid" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-mav-compid">compid</label>
+            <input id="orig-mav-compid" readonly disabled />
+          </div>
+          <div class="field">
+            <label for="orig-mav-seq">seq</label>
+            <input id="orig-mav-seq" readonly disabled />
+          </div>
+        </div>
+
+        <h3>原始 HEX</h3>
+        <div class="field">
+          <label for="orig-mav-raw-hex">MAVLink 帧 HEX（只读）</label>
+          <textarea id="orig-mav-raw-hex" readonly disabled></textarea>
+        </div>
+
+        <h3>字段明细（JSON）</h3>
+        <div class="field">
+          <label for="orig-mav-fields">当前消息字段</label>
+          <textarea id="orig-mav-fields" readonly disabled style="min-height:120px;"></textarea>
+        </div>
+      </div>
+
+      <!-- 右：MAVLink 编辑 -->
+      <div class="card">
+        <h2>
+          MAVLink 数据包 - 编辑（可篡改）
+          <span class="tag"><span class="tag-dot"></span> RAW + 关键字段</span>
+        </h2>
+
+        <h3>网络层（UDP）</h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="mav-target-ip">目标 IP</label>
+            <input id="mav-target-ip" placeholder="默认使用源 IP" />
+          </div>
+          <div class="field">
+            <label for="mav-target-port">目标端口</label>
+            <input id="mav-target-port" placeholder="例如 14550" />
+          </div>
+          <div class="field">
+            <label for="mav-src-port">源端口（可选）</label>
+            <input id="mav-src-port" placeholder="留空则由系统分配" />
+          </div>
+        </div>
+
+        <h3>消息头编辑</h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="mav-edit-sysid">sysid（系统 ID）</label>
+            <input id="mav-edit-sysid" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-compid">compid（部件 ID）</label>
+            <input id="mav-edit-compid" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-seq">seq（序号）</label>
+            <input id="mav-edit-seq" />
+          </div>
+        </div>
+
+        <h3>关键字段编辑（位置 / 速度 / 姿态）</h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="mav-edit-lat">lat（纬度，原始值）</label>
+            <input id="mav-edit-lat" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-lon">lon（经度，原始值）</label>
+            <input id="mav-edit-lon" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-alt">alt（高度，原始值）</label>
+            <input id="mav-edit-alt" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-relative-alt">relative_alt（相对高）</label>
+            <input id="mav-edit-relative-alt" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-x">x</label>
+            <input id="mav-edit-x" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-y">y</label>
+            <input id="mav-edit-y" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-z">z</label>
+            <input id="mav-edit-z" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-vx">vx</label>
+            <input id="mav-edit-vx" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-vy">vy</label>
+            <input id="mav-edit-vy" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-vz">vz</label>
+            <input id="mav-edit-vz" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-roll">roll</label>
+            <input id="mav-edit-roll" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-pitch">pitch</label>
+            <input id="mav-edit-pitch" />
+          </div>
+          <div class="field">
+            <label for="mav-edit-yaw">yaw</label>
+            <input id="mav-edit-yaw" />
+          </div>
+        </div>
+
+        <h3>
+          RAW HEX 编辑
+          <button id="btn-mav-copy-raw" class="mini-btn" type="button">从左侧拷贝 HEX</button>
+        </h3>
+        <div class="section-grid">
+          <div class="field">
+            <label for="mav-payload-hex">MAVLink 帧 HEX（可编辑）</label>
+            <textarea id="mav-payload-hex"></textarea>
+          </div>
+          <div class="field">
+            <label for="mav-payload-text">按 UTF-8 解析的文本</label>
+            <textarea id="mav-payload-text"></textarea>
+          </div>
+        </div>
+
+        <p style="font-size:11px;color:#9ca3af;margin-top:6px;">
+          提示：lat / lon / alt 等字段是 <strong>原始 MAVLink 数值</strong>（例如 GLOBAL_POSITION_INT 中 lat/lon 为 1e-7 度）。
+          目前前端只负责展示和篡改，实际重打包由后端根据 <code>field_overrides</code> 等字段实现。
+        </p>
+
+        <div class="actions">
+          <button id="btn-mav-send" class="primary" type="button">发送修改后的 MAVLink 数据</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========= 底部：概览表 + 日志 ========= -->
+  <div class="card layout-bottom">
+    <h2>最近数据包概览 & 日志</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>时间</th>
+          <th>类型</th>
+          <th>来源</th>
+          <th>备注</th>
+        </tr>
+      </thead>
+      <tbody id="packet-table-body">
+        <!-- 动态添加 -->
+      </tbody>
+    </table>
+
+    <div class="log">
+      <div class="log-header">
+        <span>日志</span>
+        <button id="btn-clear-log" style="font-size:10px;padding:2px 8px;">清空日志</button>
+      </div>
+      <div id="log-body"></div>
+    </div>
+  </div>
+
+  <script>
+    let ws;
+    let packetCounter = 0;
+    let latestTraditionalPacket = null;
+    let latestMavlinkPacket = null;
+    let currentMavMsgIndex = 0;
+
+    const wsStatusEl    = document.getElementById("ws-status");
+    const packetCountEl = document.getElementById("packet-count");
+    const packetTsEl    = document.getElementById("packet-ts");
+    const packetTableBody = document.getElementById("packet-table-body");
+    const logBody       = document.getElementById("log-body");
+
+    const traditionalSection = document.getElementById("traditional-section");
+    const mavlinkSection     = document.getElementById("mavlink-section");
+
+    // 传统原始
+    const origTEthSrcInput  = document.getElementById("orig-t-eth-src");
+    const origTEthDstInput  = document.getElementById("orig-t-eth-dst");
+    const origTEthTypeInput = document.getElementById("orig-t-eth-type");
+    const origTIpSrcInput   = document.getElementById("orig-t-ip-src");
+    const origTIpDstInput   = document.getElementById("orig-t-ip-dst");
+    const origTIpProtoInput = document.getElementById("orig-t-ip-proto");
+    const origTL4TypeInput  = document.getElementById("orig-t-l4-type");
+    const origTL4SportInput = document.getElementById("orig-t-l4-sport");
+    const origTL4DportInput = document.getElementById("orig-t-l4-dport");
+    const origTPayloadHexTextarea  = document.getElementById("orig-t-payload-hex");
+    const origTPayloadTextTextarea = document.getElementById("orig-t-payload-text");
+
+    // 传统编辑
+    const tEthSrcInput  = document.getElementById("t-eth-src");
+    const tEthDstInput  = document.getElementById("t-eth-dst");
+    const tEthTypeInput = document.getElementById("t-eth-type");
+    const tIpSrcInput   = document.getElementById("t-ip-src");
+    const tIpDstInput   = document.getElementById("t-ip-dst");
+    const tIpProtoInput = document.getElementById("t-ip-proto");
+    const tL4TypeSelect = document.getElementById("t-l4-type");
+    const tL4SportInput = document.getElementById("t-l4-sport");
+    const tL4DportInput = document.getElementById("t-l4-dport");
+    const tPayloadHexTextarea  = document.getElementById("t-payload-hex");
+    const tPayloadTextTextarea = document.getElementById("t-payload-text");
+    const tTargetIpInput = document.getElementById("t-target-ip");
+    const tPacketIdInput = document.getElementById("t-packet-id");
+
+    const btnTSend       = document.getElementById("btn-t-send");
+    const btnTCopyEth    = document.getElementById("btn-t-copy-eth");
+    const btnTCopyIp     = document.getElementById("btn-t-copy-ip");
+    const btnTCopyL4     = document.getElementById("btn-t-copy-l4");
+    const btnTCopyPayload= document.getElementById("btn-t-copy-payload");
+    const btnTCopyAll    = document.getElementById("btn-t-copy-all");
+
+    // MAVLink 原始
+    const origMavIpSrcInput   = document.getElementById("orig-mav-ip-src");
+    const origMavUdpSportInput= document.getElementById("orig-mav-udp-sport");
+    const origMavUdpProtoInput= document.getElementById("orig-mav-udp-proto");
+
+    const origMavProtoInput   = document.getElementById("orig-mav-proto");
+    const origMavMsgCountInput= document.getElementById("orig-mav-msg-count");
+    const origMavSrcAddrInput = document.getElementById("orig-mav-src-addr"); // 注意：这个 id 没有在 HTML 里，用不到可忽略
+
+    const origMavMsgNameInput = document.getElementById("orig-mav-msg-name");
+    const origMavMsgIdInput   = document.getElementById("orig-mav-msg-id");
+    const origMavSysidInput   = document.getElementById("orig-mav-sysid");
+    const origMavCompidInput  = document.getElementById("orig-mav-compid");
+    const origMavSeqInput     = document.getElementById("orig-mav-seq");
+    const origMavRawHexTextarea = document.getElementById("orig-mav-raw-hex");
+    const origMavFieldsTextarea = document.getElementById("orig-mav-fields");
+    const mavMsgSelect        = document.getElementById("mav-msg-select");
+
+    // MAVLink 编辑
+    const mavTargetIpInput    = document.getElementById("mav-target-ip");
+    const mavTargetPortInput  = document.getElementById("mav-target-port");
+    const mavSrcPortInput     = document.getElementById("mav-src-port");
+
+    const mavEditSysidInput   = document.getElementById("mav-edit-sysid");
+    const mavEditCompidInput  = document.getElementById("mav-edit-compid");
+    const mavEditSeqInput     = document.getElementById("mav-edit-seq");
+
+    const mavEditLatInput     = document.getElementById("mav-edit-lat");
+    const mavEditLonInput     = document.getElementById("mav-edit-lon");
+    const mavEditAltInput     = document.getElementById("mav-edit-alt");
+    const mavEditRelAltInput  = document.getElementById("mav-edit-relative-alt");
+    const mavEditXInput       = document.getElementById("mav-edit-x");
+    const mavEditYInput       = document.getElementById("mav-edit-y");
+    const mavEditZInput       = document.getElementById("mav-edit-z");
+    const mavEditVxInput      = document.getElementById("mav-edit-vx");
+    const mavEditVyInput      = document.getElementById("mav-edit-vy");
+    const mavEditVzInput      = document.getElementById("mav-edit-vz");
+    const mavEditRollInput    = document.getElementById("mav-edit-roll");
+    const mavEditPitchInput   = document.getElementById("mav-edit-pitch");
+    const mavEditYawInput     = document.getElementById("mav-edit-yaw");
+
+    const mavPayloadHexTextarea  = document.getElementById("mav-payload-hex");
+    const mavPayloadTextTextarea = document.getElementById("mav-payload-text");
+    const btnMavCopyRaw   = document.getElementById("btn-mav-copy-raw");
+    const btnMavSend      = document.getElementById("btn-mav-send");
+
+    // 底部
+    const btnClearLog   = document.getElementById("btn-clear-log");
+
+    function appendLog(text) {
+      const time = new Date().toISOString().split("T")[1].split(".")[0];
+      const line = document.createElement("div");
+      line.textContent = `[${time}] ${text}`;
+      logBody.appendChild(line);
+      logBody.parentElement.scrollTop = logBody.parentElement.scrollHeight;
+    }
+
+    function setWsStatus(text, ok = false) {
+      wsStatusEl.textContent = text;
+      wsStatusEl.classList.toggle("ok", ok);
+      wsStatusEl.classList.toggle("err", !ok);
+    }
+
+    function updatePacketCount() {
+      packetCountEl.textContent = `已接收数据包: ${packetCounter}`;
+    }
+
+    function updateTimestamp(tsIso) {
+      if (!tsIso) {
+        packetTsEl.textContent = "-";
+        return;
+      }
+      try {
+        const d = new Date(tsIso);
+        if (isNaN(d.getTime())) throw new Error();
+        packetTsEl.textContent = d.toLocaleTimeString();
+      } catch {
+        packetTsEl.textContent = tsIso;
+      }
+    }
+
+    function hexToText(hex) {
+      if (!hex) return "";
+      const clean = hex.replace(/\s+/g, "");
+      if (clean.length % 2 !== 0) return "";
+      const bytes = [];
+      for (let i = 0; i < clean.length; i += 2) {
+        const b = parseInt(clean.slice(i, i + 2), 16);
+        if (Number.isNaN(b)) return "";
+        bytes.push(b);
+      }
+      try {
+        return new TextDecoder("utf-8").decode(new Uint8Array(bytes));
+      } catch {
+        return "";
+      }
+    }
+
+    function textToHex(text) {
+      if (!text) return "";
+      const encoder = new TextEncoder();
+      const bytes = encoder.encode(text);
+      return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    // ===== 页面自动切换：根据 packet_type 显示哪个区域 =====
+    function switchViewByPacketType(packetType) {
+      if (packetType === "mavlink") {
+        traditionalSection.style.display = "none";
+        mavlinkSection.style.display = "block";
+      } else if (packetType === "traditional") {
+        traditionalSection.style.display = "block";
+        mavlinkSection.style.display = "none";
+      } else {
+        traditionalSection.style.display = "block";
+        mavlinkSection.style.display = "block";
+      }
+    }
+
+    // ========= 填充传统原始 =========
+    function fillTraditionalOriginal(wsPacket) {
+      const result = wsPacket.result || {};
+      const trad = result.traditional || result;
+      const layers = trad.layers || [];
+      const eth = layers.find(l => l.layer === "Ethernet") || {};
+      const ip  = layers.find(l => l.layer === "IP" || l.layer === "IPv6") || {};
+      const tcp = layers.find(l => l.layer === "TCP") || {};
+      const udp = layers.find(l => l.layer === "UDP") || {};
+
+      origTEthSrcInput.value  = eth.src || "";
+      origTEthDstInput.value  = eth.dst || "";
+      origTEthTypeInput.value = eth.type || "";
+
+      origTIpSrcInput.value   = ip.src || "";
+      origTIpDstInput.value   = ip.dst || "";
+      origTIpProtoInput.value = (ip.proto ?? "") + "";
+
+      let l4Type = "";
+      if (tcp.layer === "TCP") l4Type = "TCP";
+      if (udp.layer === "UDP") l4Type = "UDP";
+      origTL4TypeInput.value  = l4Type;
+      origTL4SportInput.value = tcp.sport || udp.sport || "";
+      origTL4DportInput.value = tcp.dport || udp.dport || "";
+
+      const payloadHex = trad.payload_raw_hex || trad.payload_hex || trad.raw_hex || "";
+      origTPayloadHexTextarea.value  = payloadHex;
+      origTPayloadTextTextarea.value = hexToText(payloadHex);
+
+      tPacketIdInput.value = wsPacket.packet_id || "";
+    }
+
+    // ========= 填充 MAVLink 原始 + 下拉 + 关键字段 =========
+    function fillMavlinkOriginal(wsPacket) {
+      const result = wsPacket.result || {};
+      const mav = result.mavlink || {};
+      const srcAddr = result.src_addr || "";
+
+      // 解析 srcAddr -> ip:port
+      let ip = "", port = "";
+      if (srcAddr.includes(":")) {
+        const parts = srcAddr.split(":");
+        ip = parts[0] || "";
+        port = parts[1] || "";
+      } else if (srcAddr) {
+        ip = srcAddr;
+      }
+
+      origMavIpSrcInput.value   = ip;
+      origMavUdpSportInput.value= port;
+      origMavUdpProtoInput.value= "UDP";
+
+      const isMav = !!mav.is_mavlink;
+      const msgCount = Array.isArray(mav.messages) ? mav.messages.length : 0;
+
+      origMavProtoInput.value    = isMav ? "MAVLink" : "未知/非法";
+      origMavMsgCountInput.value = msgCount + "";
+
+      const rawHex = mav.raw_hex || result.raw_hex || "";
+      origMavRawHexTextarea.value = rawHex;
+
+      // 默认把 RAW 拷贝到右侧编辑区 + 文本
+      mavPayloadHexTextarea.value = rawHex;
+      mavPayloadTextTextarea.value = hexToText(rawHex);
+
+      // 目标 IP/端口默认用源 IP/端口
+      mavTargetIpInput.value   = ip;
+      mavTargetPortInput.value = port;
+
+      // 刷新消息下拉框
+      while (mavMsgSelect.firstChild) {
+        mavMsgSelect.removeChild(mavMsgSelect.firstChild);
+      }
+      if (msgCount === 0) {
+        const opt = document.createElement("option");
+        opt.value = "0";
+        opt.textContent = "无消息";
+        mavMsgSelect.appendChild(opt);
+        mavMsgSelect.disabled = true;
+        origMavMsgNameInput.value = "";
+        origMavMsgIdInput.value   = "";
+        origMavSysidInput.value   = "";
+        origMavCompidInput.value  = "";
+        origMavSeqInput.value     = "";
+        origMavFieldsTextarea.value = "无有效 MAVLink 消息";
+        return;
+      }
+
+      mavMsgSelect.disabled = false;
+      Array.from({ length: msgCount }).forEach((_, idx) => {
+        const opt = document.createElement("option");
+        opt.value = String(idx);
+        opt.textContent = `消息 #${idx}`;
+        mavMsgSelect.appendChild(opt);
+      });
+
+      // 默认选第一条
+      currentMavMsgIndex = 0;
+      mavMsgSelect.value = "0";
+      updateMavCurrentMessageView(mav, currentMavMsgIndex);
+    }
+
+    function updateMavCurrentMessageView(mav, index) {
+      const msgs = Array.isArray(mav.messages) ? mav.messages : [];
+      if (msgs.length === 0 || index < 0 || index >= msgs.length) {
+        origMavMsgNameInput.value = "";
+        origMavMsgIdInput.value   = "";
+        origMavSysidInput.value   = "";
+        origMavCompidInput.value  = "";
+        origMavSeqInput.value     = "";
+        origMavFieldsTextarea.value = "无有效 MAVLink 消息";
+        return;
+      }
+
+      const msg = msgs[index];
+      if (!msg || msg.kind !== "message") {
+        origMavMsgNameInput.value = "";
+        origMavMsgIdInput.value   = "";
+        origMavSysidInput.value   = "";
+        origMavCompidInput.value  = "";
+        origMavSeqInput.value     = "";
+        origMavFieldsTextarea.value = "非正常消息（BAD_DATA 等）";
+        return;
+      }
+
+      const h = msg.header || {};
+      const f = msg.fields || {};
+
+      origMavMsgNameInput.value = h.msg_name ?? "";
+      origMavMsgIdInput.value   = (h.msg_id ?? "") + "";
+      origMavSysidInput.value   = (h.sysid ?? "") + "";
+      origMavCompidInput.value  = (h.compid ?? "") + "";
+      origMavSeqInput.value     = (h.seq ?? "") + "";
+      origMavFieldsTextarea.value = JSON.stringify(f, null, 2);
+
+      // 同步关键字段到右侧编辑区
+      fillMavEditFromFields(h, f);
+    }
+
+    function safeField(fields, key) {
+      if (!fields || typeof fields !== "object") return "";
+      const v = fields[key];
+      return (v === undefined || v === null) ? "" : String(v);
+    }
+
+    function fillMavEditFromFields(header, fields) {
+      mavEditSysidInput.value  = safeField(header, "sysid");
+      mavEditCompidInput.value = safeField(header, "compid");
+      mavEditSeqInput.value    = safeField(header, "seq");
+
+      mavEditLatInput.value        = safeField(fields, "lat");
+      mavEditLonInput.value        = safeField(fields, "lon");
+      mavEditAltInput.value        = safeField(fields, "alt");
+      mavEditRelAltInput.value     = safeField(fields, "relative_alt");
+      mavEditXInput.value          = safeField(fields, "x");
+      mavEditYInput.value          = safeField(fields, "y");
+      mavEditZInput.value          = safeField(fields, "z");
+      mavEditVxInput.value         = safeField(fields, "vx");
+      mavEditVyInput.value         = safeField(fields, "vy");
+      mavEditVzInput.value         = safeField(fields, "vz");
+      mavEditRollInput.value       = safeField(fields, "roll");
+      mavEditPitchInput.value      = safeField(fields, "pitch");
+      mavEditYawInput.value        = safeField(fields, "yaw");
+    }
+
+    // ========= 底部总览表 =========
+    function addPacketRow(wsPacket) {
+      const result = wsPacket.result || {};
+      const packetType = result.packet_type || "unknown";
+      const srcAddr = result.src_addr || "";
+
+      const tr = document.createElement("tr");
+      const ts = wsPacket.received_at ? new Date(wsPacket.received_at) : new Date();
+      const tsStr = ts.toLocaleTimeString();
+
+      let typeLabel = packetType;
+      if (packetType === "traditional") typeLabel = "传统";
+      else if (packetType === "mavlink") typeLabel = "MAVLink";
+
+      let remark = "";
+      if (packetType === "mavlink") {
+        const mav = result.mavlink || {};
+        remark = `MAV msgs=${mav.message_count ?? (mav.messages?.length || 0)}`;
+      } else if (packetType === "traditional") {
+        const trad = result.traditional || {};
+        remark = `len=${trad.length ?? result.length ?? 0}`;
+      }
+
+      const cols = [
+        ++packetCounter,
+        tsStr,
+        typeLabel,
+        srcAddr,
+        remark,
+      ];
+
+      cols.forEach(v => {
+        const td = document.createElement("td");
+        td.textContent = v;
+        tr.appendChild(td);
+      });
+
+      packetTableBody.insertBefore(tr, packetTableBody.firstChild);
+      updatePacketCount();
+    }
+
+    // ========= 拷贝 / 编辑逻辑（传统） =========
+    function copyT_Eth() {
+      tEthSrcInput.value  = origTEthSrcInput.value;
+      tEthDstInput.value  = origTEthDstInput.value;
+      tEthTypeInput.value = origTEthTypeInput.value;
+    }
+    function copyT_Ip() {
+      tIpSrcInput.value   = origTIpSrcInput.value;
+      tIpDstInput.value   = origTIpDstInput.value;
+      tIpProtoInput.value = origTIpProtoInput.value;
+    }
+    function copyT_L4() {
+      tL4TypeSelect.value = origTL4TypeInput.value || "auto";
+      tL4SportInput.value = origTL4SportInput.value;
+      tL4DportInput.value = origTL4DportInput.value;
+    }
+    function copyT_Payload() {
+      tPayloadHexTextarea.value  = origTPayloadHexTextarea.value;
+      tPayloadTextTextarea.value = origTPayloadTextTextarea.value;
+    }
+    function copyT_All() {
+      copyT_Eth();
+      copyT_Ip();
+      copyT_L4();
+      copyT_Payload();
+      appendLog("已将传统数据包所有层从左侧拷贝到右侧表单");
+    }
+
+    function buildTraditionalModifyPayload() {
+      if (!latestTraditionalPacket) {
+        alert("当前没有可以编辑的传统数据包");
+        return null;
+      }
+      const ethernet = {
+        layer: "Ethernet",
+        src: tEthSrcInput.value.trim(),
+        dst: tEthDstInput.value.trim(),
+        type: tEthTypeInput.value.trim(),
+      };
+      const ip = {
+        layer: "IP",
+        src: tIpSrcInput.value.trim(),
+        dst: tIpDstInput.value.trim(),
+        proto: tIpProtoInput.value.trim() ? Number(tIpProtoInput.value.trim()) : undefined,
+      };
+      const l4Type = tL4TypeSelect.value === "auto" ? null : tL4TypeSelect.value;
+      const transport = {
+        layer: l4Type || undefined,
+        sport: tL4SportInput.value.trim() ? Number(tL4SportInput.value.trim()) : undefined,
+        dport: tL4DportInput.value.trim() ? Number(tL4DportInput.value.trim()) : undefined,
+      };
+      const payloadHex = tPayloadHexTextarea.value.replace(/\s+/g, "");
+      const targetIp   = tTargetIpInput.value.trim();
+
+      return {
+        action: "modify_and_send",
+        protocol: "traditional",
+        original_packet_id: latestTraditionalPacket.packet_id || null,
+        target_ip: targetIp || null,
+        layers: { ethernet, ip, transport },
+        payload_hex: payloadHex,
+      };
+    }
+
+    // HEX <-> 文本 双向联动（传统）
+    let tUpdatingFromHex = false;
+    let tUpdatingFromText = false;
+
+    tPayloadHexTextarea.addEventListener("input", () => {
+      if (tUpdatingFromText) return;
+      tUpdatingFromHex = true;
+      const hex = tPayloadHexTextarea.value.replace(/\s+/g, "");
+      tPayloadTextTextarea.value = hexToText(hex);
+      tUpdatingFromHex = false;
+    });
+    tPayloadTextTextarea.addEventListener("input", () => {
+      if (tUpdatingFromHex) return;
+      tUpdatingFromText = true;
+      const text = tPayloadTextTextarea.value;
+      tPayloadHexTextarea.value = textToHex(text);
+      tUpdatingFromText = false;
+    });
+
+    // ========= MAVLink 编辑 HEX <-> 文本 =========
+    let mavUpdatingFromHex = false;
+    let mavUpdatingFromText = false;
+
+    mavPayloadHexTextarea.addEventListener("input", () => {
+      if (mavUpdatingFromText) return;
+      mavUpdatingFromHex = true;
+      const hex = mavPayloadHexTextarea.value.replace(/\s+/g, "");
+      mavPayloadTextTextarea.value = hexToText(hex);
+      mavUpdatingFromHex = false;
+    });
+    mavPayloadTextTextarea.addEventListener("input", () => {
+      if (mavUpdatingFromHex) return;
+      mavUpdatingFromText = true;
+      const text = mavPayloadTextTextarea.value;
+      mavPayloadHexTextarea.value = textToHex(text);
+      mavUpdatingFromText = false;
+    });
+
+    function buildMavlinkModifyPayload() {
+      if (!latestMavlinkPacket) {
+        alert("当前没有可编辑的 MAVLink 数据包");
+        return null;
+      }
+      const result = latestMavlinkPacket.result || {};
+      const mav = result.mavlink || {};
+      const msgs = Array.isArray(mav.messages) ? mav.messages : [];
+      const msgIndex = (currentMavMsgIndex >= 0 && currentMavMsgIndex < msgs.length) ? currentMavMsgIndex : 0;
+      const msg = msgs[msgIndex] || null;
+      const header = msg ? (msg.header || {}) : {};
+
+      const header_overrides = {};
+      const sysidStr = mavEditSysidInput.value.trim();
+      const compidStr = mavEditCompidInput.value.trim();
+      const seqStr = mavEditSeqInput.value.trim();
+      if (sysidStr !== "") header_overrides.sysid = Number(sysidStr);
+      if (compidStr !== "") header_overrides.compid = Number(compidStr);
+      if (seqStr !== "") header_overrides.seq = Number(seqStr);
+
+      const field_overrides = {};
+      function addFieldOverride(inputEl, name) {
+        const v = inputEl.value.trim();
+        if (v === "") return;
+        const n = Number(v);
+        field_overrides[name] = Number.isNaN(n) ? v : n;
+      }
+      addFieldOverride(mavEditLatInput, "lat");
+      addFieldOverride(mavEditLonInput, "lon");
+      addFieldOverride(mavEditAltInput, "alt");
+      addFieldOverride(mavEditRelAltInput, "relative_alt");
+      addFieldOverride(mavEditXInput, "x");
+      addFieldOverride(mavEditYInput, "y");
+      addFieldOverride(mavEditZInput, "z");
+      addFieldOverride(mavEditVxInput, "vx");
+      addFieldOverride(mavEditVyInput, "vy");
+      addFieldOverride(mavEditVzInput, "vz");
+      addFieldOverride(mavEditRollInput, "roll");
+      addFieldOverride(mavEditPitchInput, "pitch");
+      addFieldOverride(mavEditYawInput, "yaw");
+
+      const payloadHex = mavPayloadHexTextarea.value.replace(/\s+/g, "");
+      const targetIp   = mavTargetIpInput.value.trim();
+      const targetPort = mavTargetPortInput.value.trim();
+      const srcPort    = mavSrcPortInput.value.trim();
+
+      return {
+        action: "modify_and_send_mavlink",  // 后端需要按这个 action 实现打包发送
+        protocol: "mavlink",
+        original_packet_id: latestMavlinkPacket.packet_id || null,
+        target_ip: targetIp || null,
+        target_port: targetPort ? Number(targetPort) : null,
+        src_port: srcPort ? Number(srcPort) : null,
+        msg_index: msgIndex,
+        msg_name: header.msg_name || null,
+        header_overrides,
+        field_overrides,
+        raw_hex: payloadHex || null,
+      };
+    }
+
+    // ========= WS =========
+    function connectWS() {
+      try {
+        ws = new WebSocket("ws://localhost:8000/ws/parse");
+      } catch (e) {
+        appendLog("创建 WebSocket 失败: " + e);
+        setWsStatus("WebSocket: 创建失败", false);
+        return;
+      }
+
+      ws.onopen = () => {
+        setWsStatus("WebSocket: 已连接，等待后端推送数据包...", true);
+        appendLog("WebSocket 已连接");
+        btnTSend.disabled    = false;
+        btnTCopyEth.disabled = false;
+        btnTCopyIp.disabled  = false;
+        btnTCopyL4.disabled  = false;
+        btnTCopyPayload.disabled = false;
+        btnTCopyAll.disabled = false;
+        btnMavCopyRaw.disabled = false;
+        btnMavSend.disabled    = false;
+      };
+
+      ws.onclose = () => {
+        setWsStatus("WebSocket: 已断开，尝试重连...", false);
+        appendLog("WebSocket 已断开，3 秒后重连");
+        btnTSend.disabled    = true;
+        btnTCopyEth.disabled = true;
+        btnTCopyIp.disabled  = true;
+        btnTCopyL4.disabled  = true;
+        btnTCopyPayload.disabled = true;
+        btnTCopyAll.disabled = true;
+        btnMavCopyRaw.disabled = true;
+        btnMavSend.disabled    = true;
+        setTimeout(connectWS, 3000);
+      };
+
+      ws.onerror = (e) => {
+        console.error(e);
+        setWsStatus("WebSocket: 出错", false);
+        appendLog("WebSocket 出错");
+      };
+
+      ws.onmessage = (event) => {
+        let data;
+        try {
+          data = JSON.parse(event.data);
+        } catch (e) {
+          appendLog("收到非 JSON 消息: " + event.data);
+          return;
+        }
+
+        if (data.type === "net_result") {
+          const result = data.result || {};
+          const packetType = result.packet_type || "unknown";
+
+          switchViewByPacketType(packetType);
+          addPacketRow(data);
+          const ts = data.received_at || new Date().toISOString();
+          updateTimestamp(ts);
+
+          if (packetType === "traditional") {
+            latestTraditionalPacket = data;
+            fillTraditionalOriginal(data);
+            appendLog("收到传统数据包");
+          } else if (packetType === "mavlink") {
+            latestMavlinkPacket = data;
+            fillMavlinkOriginal(data);
+            appendLog("收到 MAVLink 数据包");
+          } else {
+            appendLog("收到未知类型数据包");
+          }
+        } else {
+          appendLog("收到其他类型消息: " + (data.type || "(无 type)"));
+        }
+      };
+    }
+
+    // ========= 按钮事件绑定 =========
+    btnTCopyEth.addEventListener("click", () => {
+      if (!latestTraditionalPacket) { alert("还没有传统数据包"); return; }
+      copyT_Eth();
+    });
+    btnTCopyIp.addEventListener("click", () => {
+      if (!latestTraditionalPacket) { alert("还没有传统数据包"); return; }
+      copyT_Ip();
+    });
+    btnTCopyL4.addEventListener("click", () => {
+      if (!latestTraditionalPacket) { alert("还没有传统数据包"); return; }
+      copyT_L4();
+    });
+    btnTCopyPayload.addEventListener("click", () => {
+      if (!latestTraditionalPacket) { alert("还没有传统数据包"); return; }
+      copyT_Payload();
+    });
+    btnTCopyAll.addEventListener("click", () => {
+      if (!latestTraditionalPacket) { alert("还没有传统数据包"); return; }
+      copyT_All();
+    });
+
+    btnTSend.addEventListener("click", () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert("WebSocket 未连接");
+        return;
+      }
+      const payload = buildTraditionalModifyPayload();
+      if (!payload) return;
+      ws.send(JSON.stringify(payload));
+      appendLog("发送传统 modify_and_send 请求: " + JSON.stringify(payload));
+    });
+
+    mavMsgSelect.addEventListener("change", () => {
+      if (!latestMavlinkPacket) return;
+      const result = latestMavlinkPacket.result || {};
+      const mav = result.mavlink || {};
+      const idx = Number(mavMsgSelect.value);
+      currentMavMsgIndex = Number.isNaN(idx) ? 0 : idx;
+      updateMavCurrentMessageView(mav, currentMavMsgIndex);
+      appendLog(`切换当前 MAVLink 消息为 #${currentMavMsgIndex}`);
+    });
+
+    btnMavCopyRaw.addEventListener("click", () => {
+      if (!latestMavlinkPacket) { alert("还没有 MAVLink 数据包"); return; }
+      const result = latestMavlinkPacket.result || {};
+      const mav = result.mavlink || {};
+      const rawHex = mav.raw_hex || result.raw_hex || "";
+      mavPayloadHexTextarea.value = rawHex;
+      mavPayloadTextTextarea.value = hexToText(rawHex);
+      appendLog("已将 MAVLink RAW HEX 拷贝到右侧编辑区");
+    });
+
+    btnMavSend.addEventListener("click", () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert("WebSocket 未连接");
+        return;
+      }
+      const payload = buildMavlinkModifyPayload();
+      if (!payload) return;
+      ws.send(JSON.stringify(payload));
+      appendLog("发送 MAVLink 修改请求: " + JSON.stringify(payload));
+    });
+
+    btnClearLog.addEventListener("click", () => {
+      logBody.innerHTML = "";
+    });
+
+    connectWS();
+  </script>
+</body>
+</html>
