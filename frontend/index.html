@@ -354,15 +354,13 @@
           应用层载荷
           <button id="btn-t-copy-payload" class="mini-btn" type="button">拷贝载荷</button>
         </h3>
-        <div class="section-grid">
-          <div class="field">
-            <label for="t-payload-hex">编辑载荷 HEX</label>
-            <textarea id="t-payload-hex"></textarea>
-          </div>
-          <div class="field">
-            <label for="t-payload-text">编辑载荷文本（UTF-8）</label>
-            <textarea id="t-payload-text"></textarea>
-          </div>
+        <div class="field">
+          <label for="t-payload-hex">编辑载荷 HEX</label>
+          <textarea id="t-payload-hex"></textarea>
+        </div>
+        <div class="field">
+          <label for="t-payload-text">编辑载荷文本（UTF-8）</label>
+          <textarea id="t-payload-text"></textarea>
         </div>
 
         <h3>发送配置</h3>
@@ -542,10 +540,6 @@
           <label for="mav-payload-hex">MAVLink 帧 HEX</label>
           <textarea id="mav-payload-hex"></textarea>
         </div>
-        <div class="field">
-          <label for="mav-payload-text">按 UTF-8 解析的文本</label>
-          <textarea id="mav-payload-text"></textarea>
-        </div>
 
         <h3>字段明细（JSON，可编辑）</h3>
         <div class="field">
@@ -672,7 +666,6 @@
     const mavEditFieldsTextarea = document.getElementById("mav-edit-fields");
 
     const mavPayloadHexTextarea  = document.getElementById("mav-payload-hex");
-    const mavPayloadTextTextarea = document.getElementById("mav-payload-text");
     const btnMavCopyRaw   = document.getElementById("btn-mav-copy-raw");
     const btnMavCopyAll   = document.getElementById("btn-mav-copy-all");
     const btnMavSend      = document.getElementById("btn-mav-send");
@@ -780,6 +773,8 @@
       origTPayloadTextTextarea.value = hexToText(payloadHex);
 
       tPacketIdInput.value = wsPacket.packet_id || "";
+      // 默认将左侧解析结果同步到右侧可编辑区
+      copyT_AllSilent();
     }
 
     // ========= 填充 MAVLink 原始 + 下拉 + 关键字段 =========
@@ -818,7 +813,6 @@
 
       // 默认把 RAW 拷贝到右侧编辑区 + 文本
       mavPayloadHexTextarea.value = rawHex;
-      mavPayloadTextTextarea.value = hexToText(rawHex);
 
       // 刷新消息下拉框
       while (mavMsgSelect.firstChild) {
@@ -936,7 +930,6 @@
       mavEditSeqInput.value       = origMavSeqInput.value;
 
       mavPayloadHexTextarea.value  = origMavRawHexTextarea.value;
-      mavPayloadTextTextarea.value = hexToText(origMavRawHexTextarea.value);
       mavEditFieldsTextarea.value  = origMavFieldsTextarea.value;
     }
 
@@ -1001,11 +994,14 @@
       tPayloadHexTextarea.value  = origTPayloadHexTextarea.value;
       tPayloadTextTextarea.value = origTPayloadTextTextarea.value;
     }
-    function copyT_All() {
+    function copyT_AllSilent() {
       copyT_Eth();
       copyT_Ip();
       copyT_L4();
       copyT_Payload();
+    }
+    function copyT_All() {
+      copyT_AllSilent();
       appendLog("已将传统数据包所有层从左侧拷贝到右侧表单");
     }
 
@@ -1062,25 +1058,6 @@
       const text = tPayloadTextTextarea.value;
       tPayloadHexTextarea.value = textToHex(text);
       tUpdatingFromText = false;
-    });
-
-    // ========= MAVLink 编辑 HEX <-> 文本 =========
-    let mavUpdatingFromHex = false;
-    let mavUpdatingFromText = false;
-
-    mavPayloadHexTextarea.addEventListener("input", () => {
-      if (mavUpdatingFromText) return;
-      mavUpdatingFromHex = true;
-      const hex = mavPayloadHexTextarea.value.replace(/\s+/g, "");
-      mavPayloadTextTextarea.value = hexToText(hex);
-      mavUpdatingFromHex = false;
-    });
-    mavPayloadTextTextarea.addEventListener("input", () => {
-      if (mavUpdatingFromHex) return;
-      mavUpdatingFromText = true;
-      const text = mavPayloadTextTextarea.value;
-      mavPayloadHexTextarea.value = textToHex(text);
-      mavUpdatingFromText = false;
     });
 
     function buildMavlinkModifyPayload() {
@@ -1271,7 +1248,6 @@
       const mav = result.mavlink || {};
       const rawHex = mav.raw_hex || result.raw_hex || "";
       mavPayloadHexTextarea.value = rawHex;
-      mavPayloadTextTextarea.value = hexToText(rawHex);
       appendLog("已将 MAVLink RAW HEX 拷贝到右侧编辑区");
     });
     btnMavCopyAll.addEventListener("click", () => {
