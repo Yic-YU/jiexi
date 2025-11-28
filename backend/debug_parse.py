@@ -1,8 +1,8 @@
 # backend/debug_parse.py
 
 
-from parsers.net_parser import parse_packet
-from parsers.mavlink_parser import parse_mavlink_stream, build_sample_mavlink_stream
+from backend.parsers.net_parser import parse_packet
+from backend.parsers.mavlink_parser import parse_mavlink_stream, build_sample_mavlink_stream
 from scapy.all import raw
 from scapy.layers.l2 import Ether
 from scapy.layers.inet import IP, TCP

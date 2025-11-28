@@ -6,7 +6,7 @@ from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
-from parsers.dispatcher import parse_packet
+from backend.parsers.dispatcher import parse_packet
 
 app = FastAPI()
 
