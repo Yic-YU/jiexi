@@ -206,6 +206,7 @@
     <div>
       <span id="ws-status" class="status-pill">WebSocket: 连接中...</span>
       <span id="packet-count" class="status-pill">已接收数据包: 0</span>
+      <span id="old-packet-count" class="status-pill">连续旧包: 0</span>
     </div>
     <div>
       <span class="pill">最后更新：<span id="packet-ts">-</span></span>
@@ -607,9 +608,11 @@
     // ========== 状态 ==========
     let ws;
     let packetCounter = 0;
+    let oldPacketCounter = 0;
 
     const wsStatusEl      = document.getElementById("ws-status");
     const packetCountEl   = document.getElementById("packet-count");
+    const oldPacketCountEl = document.getElementById("old-packet-count");
     const packetTsEl      = document.getElementById("packet-ts");
     const packetTableBody = document.getElementById("packet-table-body");
     const logBody         = document.getElementById("log-body");
@@ -693,6 +696,10 @@
 
     function updatePacketCount() {
       packetCountEl.textContent = `已接收数据包: ${packetCounter}`;
+    }
+
+    function updateOldPacketCount() {
+      oldPacketCountEl.textContent = `连续旧包: ${oldPacketCounter}`;
     }
 
     function updateTimestampNow() {
@@ -918,9 +925,13 @@
         }
 
         if (data.type !== "packet") {
-          appendLog("收到其他类型消息: " + (data.type || "(无 type)"));
+          oldPacketCounter += 1;
+          updateOldPacketCount();
+          appendLog(`收到旧包（连续 ${oldPacketCounter} 次）: ${data.type || "(无 type)"}`);
           return;
         }
+        oldPacketCounter = 0;
+        updateOldPacketCount();
 
         const packet = data.packet || {};
         const app    = packet.application || {};
