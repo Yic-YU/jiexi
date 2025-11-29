@@ -1,161 +1,128 @@
-# backend/parsers/mavlink_parser.py
-from __future__ import annotations
+from typing import Any, Dict, Tuple, Optional
+import io
+import struct
 
-from typing import List, Dict, Any
-from pymavlink import mavutil
+from pymavlink.dialects.v20 import common as mavlink2
 
-# 全局 MAVLink 解析器
-# 不绑定任何传输层（串口/UDP），只负责解析字节
-_mav = mavutil.mavlink.MAVLink(None)
-# 遇到坏字节尽量继续解析后面的数据
-_mav.robust_parsing = True
+from . import ApplicationLayer
 
 
-def _msg_to_dict(msg) -> Dict[str, Any]:
+def looks_like_mavlink(data: bytes) -> bool:
+    """Check if bytes resemble a MAVLink frame (1 frame per UDP/TCP packet)"""
+    if len(data) < 6:
+        return False
+
+    stx = data[0]
+    if stx not in (0xFE, 0xFD):  # MAVLink v1/v2 start byte
+        return False
+
+    payload_len = data[1]
+    min_len = 6 + payload_len + 2 if stx == 0xFE else 10 + payload_len + 2  # v1/v2 min length
+    return len(data) >= min_len
+
+
+def _parse_header(data: bytes) -> Tuple[Dict[str, Any], int, int]:
+    """Parse MAVLink header (v1/v2)
+    Returns: (header_dict, header_len, frame_len)
+    frame_len: Full length of frame (including checksum and optional signature)
     """
-    把 pymavlink 的消息对象转换成前端友好的 dict
-    （避免直接用 msg.to_dict() 里面结构比较绕）
-    """
-    msg_type = msg.get_type()
+    if len(data) < 6:
+        raise ValueError("Data too short for MAVLink header")
 
-    # ---- BAD_DATA：说明中间有垃圾数据或残缺帧 ----
-    if msg_type == "BAD_DATA":
-        bad_bytes = getattr(msg, "data", b"")
-        if isinstance(bad_bytes, str):
-            bad_bytes = bad_bytes.encode("utf-8", errors="ignore")
-        return {
-            "kind": "bad_data",
-            "raw": bad_bytes.hex(),
-        }
+    stx = data[0]
+    payload_len = data[1]
 
-    # ---- 正常 MAVLink 消息 ----
-    header = {
-        "seq": msg.get_seq(),
-        "sysid": msg.get_srcSystem(),
-        "compid": msg.get_srcComponent(),
-        "msg_id": msg.get_msgId(),
-        "msg_name": msg_type,
-    }
+    if stx == 0xFE:  # MAVLink v1
+        version, header_len = 1, 6
+        if len(data) < header_len + payload_len + 2:
+            raise ValueError("Data too short for MAVLink v1 frame")
+        
+        seq, sysid, compid, msgid = data[2], data[3], data[4], data[5]
+        incompat_flags = compat_flags = None
+    elif stx == 0xFD:  # MAVLink v2
+        version, header_len = 2, 10
+        if len(data) < header_len + payload_len + 2:
+            raise ValueError("Data too short for MAVLink v2 frame")
+        
+        incompat_flags, compat_flags = data[2], data[3]
+        seq, sysid, compid = data[4], data[5], data[6]
+        msgid = data[7] | (data[8] << 8) | (data[9] << 16)
+    else:
+        raise ValueError(f"Unknown MAVLink STX: {stx:#x}")
 
-    fields: Dict[str, Any] = {}
-    for name in msg.get_fieldnames():
-        value = getattr(msg, name)
+    checksum_end = header_len + payload_len + 2
+    frame_len = checksum_end
+    signature = None
 
-        # bytes/bytearray -> 尽量按 UTF-8 解码，失败就用 hex
-        if isinstance(value, (bytes, bytearray)):
-            try:
-                fields[name] = value.decode("utf-8", errors="ignore").rstrip("\x00")
-            except Exception:
-                fields[name] = bytes(value).hex()
+    # Check for MAVLink v2 signature (13 bytes)
+    if stx == 0xFD and len(data) >= checksum_end + 13:
+        signature = data[checksum_end:checksum_end + 13].hex()
+        frame_len += 13
 
-        # list/tuple 里有 bytes 的情况
-        elif isinstance(value, (list, tuple)):
-            tmp = []
-            for v in value:
-                if isinstance(v, (bytes, bytearray)):
-                    try:
-                        tmp.append(v.decode("utf-8", errors="ignore").rstrip("\x00"))
-                    except Exception:
-                        tmp.append(bytes(v).hex())
-                else:
-                    tmp.append(v)
-            fields[name] = tmp
-
-        else:
-            fields[name] = value
+    checksum = struct.unpack("<H", data[header_len + payload_len:checksum_end])[0]
 
     return {
-        "kind": "message",
-        "header": header,
-        "fields": fields,
-    }
+        "version": version,
+        "stx": f"0x{stx:02x}",
+        "len": payload_len,
+        "seq": seq,
+        "sysid": sysid,
+        "compid": compid,
+        "msgid": msgid,
+        "checksum": f"0x{checksum:04x}",
+        "incompat_flags": incompat_flags,
+        "compat_flags": compat_flags,
+        "signature": signature,
+    }, header_len, frame_len
 
 
-def parse_mavlink_bytes(data: bytes) -> Dict[str, Any]:
-    """
-    用 pymavlink 解析一段 MAVLink 字节流（可能包含多条消息）。
-
-    返回一个总的结果结构（后面调度函数可以直接用）：
+def parse_mavlink_payload(data: bytes) -> ApplicationLayer:
+    """Parse bytes as MAVLink frame (supports v1/v2)
+    ApplicationLayer.fields structure:
     {
-        "is_mavlink": bool,
-        "raw_hex": str,
-        "length": int,
-        "message_count": int,
-        "messages": [ {...}, ... ],
-        "error": 可选错误信息
+      "header": {...},  # Parsed header info
+      "payload": {...}  # Message fields from msg.to_dict()
     }
     """
-    if not data:
-        return {
-            "is_mavlink": False,
-            "raw_hex": "",
-            "length": 0,
-            "message_count": 0,
-            "messages": [],
+    header, header_len, frame_len = _parse_header(data)
+    frame_bytes = data[:frame_len]
+    payload_bytes = frame_bytes[header_len:header_len + header["len"]]
+
+    # Parse frame with pymavlink
+    mav = mavlink2.MAVLink(io.BytesIO())
+    msg = None
+    for b in frame_bytes:
+        parsed = mav.parse_char(bytes([b]))
+        if parsed:
+            msg = parsed
+            break
+
+    msg_name: Optional[str] = None
+    msg_id: Optional[int] = header["msgid"]
+    payload_fields: Dict[str, Any]
+
+    if not msg:
+        payload_fields = {
+            "_error": "Unable to parse MAVLink message payload",
+            "_raw_payload_hex": payload_bytes.hex()
         }
+    else:
+        payload_fields = msg.to_dict()
+        msg_name = msg.get_type()
+        msg_id = msg.get_msgId()
+        # Add extra metadata
+        payload_fields.update({
+            "_sysid": msg.get_srcSystem(),
+            "_compid": msg.get_srcComponent(),
+            "_msgid": msg_id,
+            "_msg_name": msg_name
+        })
 
-    try:
-        # parse_buffer 会从 data 里尽可能多地解析出消息列表
-        msgs = _mav.parse_buffer(data)
-    except Exception as e:
-        # 解析器内部出错，一般说明根本不是 MAVLink
-        return {
-            "is_mavlink": False,
-            "raw_hex": data.hex(),
-            "length": len(data),
-            "message_count": 0,
-            "messages": [],
-            "error": f"pymavlink parse error: {e}",
-        }
-
-    if msgs is None:
-        msgs = []
-
-    msg_dicts: List[Dict[str, Any]] = [_msg_to_dict(m) for m in msgs]
-
-    # 只要有一条正常的 message，就认为这是 MAVLink 数据
-    is_mav = any(m["kind"] == "message" for m in msg_dicts)
-
-    return {
-        "is_mavlink": is_mav,
-        "raw_hex": data.hex(),
-        "length": len(data),
-        "message_count": len(msg_dicts),
-        "messages": msg_dicts,
-    }
-
-
-# ===== 兼容你之前的调试接口 =====
-
-def parse_mavlink_stream(data: bytes) -> List[Dict[str, Any]]:
-    """
-    旧接口：保持给 debug_parse.py 用。
-    直接返回“每条消息一个 dict”的列表。
-    """
-    result = parse_mavlink_bytes(data)
-    return result["messages"]
-
-
-def build_sample_mavlink_stream() -> bytes:
-    """
-    构造一条示例 HEARTBEAT 消息，返回原始 MAVLink 字节流。
-    用来本地测试 parse_mavlink_stream。
-    """
-    # 一个新的 MAVLink 对象用来“发送”（打包）消息
-    mav = mavutil.mavlink.MAVLink(None)
-    mav.robust_parsing = True
-    mav.srcSystem = 1
-    mav.srcComponent = 1
-
-    # HEARTBEAT 消息（ardupilotmega 常规字段）
-    msg = mav.heartbeat_encode(
-        mavutil.mavlink.MAV_TYPE_QUADROTOR,          # 机体类型
-        mavutil.mavlink.MAV_AUTOPILOT_ARDUPILOTMEGA, # 飞控类型
-        0,                                           # base_mode
-        0,                                           # custom_mode
-        0,                                           # system_status
-        3                                            # mavlink_version
+    return ApplicationLayer(
+        protocol="MAVLink",
+        is_mavlink=True,
+        msg_name=msg_name,
+        msg_id=msg_id,
+        fields={"header": header, "payload": payload_fields},
+        raw_hex=frame_bytes.hex()  # Full frame hex (stx to signature)
     )
-
-    raw_bytes = msg.pack(mav)
-    return raw_bytes

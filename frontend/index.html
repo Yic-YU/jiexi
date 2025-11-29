@@ -790,11 +790,9 @@
       const link = packet.link || {};
       const net  = packet.network || {};
       const app  = packet.application || {};
-      const meta = packet.meta || {}; // 获取后端的 meta 数据
-      const pos  = meta.position || {}; // 获取提取好的位置
+      const meta = packet.meta || {};
       const fields = app.fields || {};
       const payload = fields.payload || {};
-      const vel  = meta.velocity || {}; // 若后端未来补充 velocity，仍可兼容
       const msgNameRaw = app.kind || "Unknown";
       const msgIdRaw = (packet.id !== undefined ? packet.id : (app.id !== undefined ? app.id : app.msg_id));
       const msgIdStr = (msgIdRaw !== undefined && msgIdRaw !== null) ? String(msgIdRaw) : "";
@@ -829,36 +827,30 @@
       // 4. 关键位置数据 - 优先使用 meta.position (后端提取)
       // 如果 meta 中没有，再尝试从 application.fields 中找
       
-      const xVal = (pos.x !== undefined) ? pos.x
-        : (payload.x !== undefined ? payload.x
+      const xVal = (payload.x !== undefined) ? payload.x
         : (fields.x !== undefined ? fields.x
-        : app.x));
-      const yVal = (pos.y !== undefined) ? pos.y
-        : (payload.y !== undefined ? payload.y
+        : app.x);
+      const yVal = (payload.y !== undefined) ? payload.y
         : (fields.y !== undefined ? fields.y
-        : app.y));
-      const zVal = (pos.z !== undefined) ? pos.z
-        : (payload.z !== undefined ? payload.z
+        : app.y);
+      const zVal = (payload.z !== undefined) ? payload.z
         : (fields.z !== undefined ? fields.z
-        : app.z));
+        : app.z);
 
       if (orig_mav_edit_x) orig_mav_edit_x.value = xVal !== undefined ? xVal : "";
       if (orig_mav_edit_y) orig_mav_edit_y.value = yVal !== undefined ? yVal : "";
       if (orig_mav_edit_z) orig_mav_edit_z.value = zVal !== undefined ? zVal : "";
 
-      // 5. 速度数据 - 优先从 application.fields / payload 读取，若后端未来补充 meta.velocity 则也兼容
+      // 5. 速度数据 - 只使用 application 中的字段
       const vxVal = (payload.vx !== undefined) ? payload.vx
         : (fields.vx !== undefined ? fields.vx
-        : (app.vx !== undefined ? app.vx
-        : vel.vx));
+        : app.vx);
       const vyVal = (payload.vy !== undefined) ? payload.vy
         : (fields.vy !== undefined ? fields.vy
-        : (app.vy !== undefined ? app.vy
-        : vel.vy));
+        : app.vy);
       const vzVal = (payload.vz !== undefined) ? payload.vz
         : (fields.vz !== undefined ? fields.vz
-        : (app.vz !== undefined ? app.vz
-        : vel.vz));
+        : app.vz);
 
       if (orig_mav_edit_vx) orig_mav_edit_vx.value = vxVal !== undefined ? vxVal : "";
       if (orig_mav_edit_vy) orig_mav_edit_vy.value = vyVal !== undefined ? vyVal : "";
