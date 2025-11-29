@@ -10,6 +10,7 @@ from typing import Optional, Set, Tuple, Any, Dict
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 import uvicorn
 
 from parsers.dispatcher import dispatch_packet
@@ -53,6 +54,29 @@ LOCK = threading.Lock()
 
 connected_clients: Set[WebSocket] = set()
 MAIN_LOOP: Optional[asyncio.AbstractEventLoop] = None
+
+
+# ================== 前端 override JSON 模型 ==================
+
+class OverrideCommand(BaseModel):
+    """
+    前端通过 HTTP POST 传回的控制指令 JSON：
+      {
+        "id": 123,
+        "kind": "SET_POSITION_TARGET_LOCAL_NED",
+        "x": 1.0, "y": 2.0, "z": -3.0,
+        "vx": 0.1, "vy": 0.0, "vz": -0.1
+      }
+    """
+    id: int
+    kind: str
+    x: float
+    y: float
+    z: float
+    vx: float
+    vy: float
+    vz: float
+
 
 # ================== FastAPI 应用 ==================
 
@@ -152,14 +176,13 @@ def parse_ethernet_ipv4_udp(
 
 # -------------- WebSocket 广播辅助 --------------
 
-async def broadcast_packet(pkt_dict: dict):
+async def broadcast_message(msg: dict):
+    """
+    通用广播：直接发送传入的 msg（已经包含 type 等字段）
+    """
     if not connected_clients:
         return
 
-    msg = {
-        "type": "packet",
-        "packet": pkt_dict,
-    }
     text = json.dumps(msg, ensure_ascii=False)
 
     dead_clients = []
@@ -171,6 +194,17 @@ async def broadcast_packet(pkt_dict: dict):
 
     for ws in dead_clients:
         connected_clients.discard(ws)
+
+
+async def broadcast_packet(pkt_dict: dict):
+    """
+    兼容原来的接口：把包包装成 {"type": "packet", "packet": ...} 再发
+    """
+    msg = {
+        "type": "packet",
+        "packet": pkt_dict,
+    }
+    await broadcast_message(msg)
 
 
 # -------------- 小工具：从 fields 里提取 x / y / z --------------
@@ -226,8 +260,8 @@ def raw_worker(loop: asyncio.AbstractEventLoop):
       - 只处理 UDP，dst_port == UDP_PORT(14556)
       - 只关心 src_ip == CONTROLLER_IP（控制端发出的控制流）
       - 只对带 x,y,z 的位置控制消息做处理：
-          * 如果新包 (x,y,z) 和前一条一样，直接丢弃，不推前端
-          * 如果 (x,y,z) 变化了，就推一条，并在 meta.repeat_since_last 里
+          * 如果新包 (x,y,z) 和前一条一样，发送一条 type="none" 给前端
+          * 如果 (x,y,z) 变化了，就推一条 type="packet"，并在 meta.repeat_since_last 里
             带上“上一条位置重复了多少次”
       - 不解析 / 不推无人机回传（PX4 -> 控制端）的数据
     """
@@ -285,39 +319,53 @@ def raw_worker(loop: asyncio.AbstractEventLoop):
             # print(f"[RAW] non-pos MAVLink msg: {app.msg_name}")
             continue
 
-        # ============ 这里是你要看的调试输出 ============  #
-        print(
-            f"[RAW POS] src={src_ip}:{src_port} -> dst={dst_ip}:{dst_port}, "
-            f"msg={app.msg_name}, xyz={xyz}"
-        )
+        # 不再打印 xyz 日志
 
         with LOCK:
             prev_repeat = LAST_POS_REPEAT
 
             if LAST_POS is None:
-                print("[RAW POS] FIRST position, LAST_POS=None")
+                # 第一条位置包
                 LAST_POS = xyz
                 LAST_POS_REPEAT = 0
+
+                # 记录最近一条“有效位置变更”
+                LAST_PACKET = pkt
+
             elif xyz == LAST_POS:
+                # 位置没变：重复计数 +1，并发 type="none" 给前端
                 LAST_POS_REPEAT += 1
-                print(
-                    f"[RAW POS] SAME as last, LAST_POS={LAST_POS}, "
-                    f"repeat_cnt={LAST_POS_REPEAT}"
+
+                pkt_dict = {
+                    "meta": {
+                        "repeat_cnt": LAST_POS_REPEAT,
+                        "position": {
+                            "x": LAST_POS[0],
+                            "y": LAST_POS[1],
+                            "z": LAST_POS[2],
+                        },
+                    }
+                }
+                msg = {
+                    "type": "none",
+                    "packet": pkt_dict,
+                }
+
+                asyncio.run_coroutine_threadsafe(
+                    broadcast_message(msg), loop
                 )
-                # 位置没变：只增加重复计数，不推前端
+                # 不再推“正常”数据包
                 continue
+
             else:
-                print(
-                    f"[RAW POS] CHANGED, LAST_POS={LAST_POS} -> NEW={xyz}, "
-                    f"prev_repeat={LAST_POS_REPEAT}"
-                )
+                # 位置发生变化
                 LAST_POS = xyz
                 LAST_POS_REPEAT = 0
 
-            # 记录最近一条“有效位置变更”
-            LAST_PACKET = pkt
+                # 记录最近一条“有效位置变更”
+                LAST_PACKET = pkt
 
-        # 把这条“位置变化”的包推到前端
+        # 把这条“位置变化”的包推到前端（正常的 type="packet"）
         pkt_dict = pkt.to_dict()
         meta: Dict[str, Any] = pkt_dict.setdefault("meta", {})
         meta["repeat_since_last"] = prev_repeat  # 上一个位置重复了多少次
@@ -435,7 +483,7 @@ async def on_startup():
     print("[APP] PX4->Controller forwarder started")
 
 
-# ================== HTTP API（可选） ==================
+# ================== HTTP API ==================
 
 @app.get("/api/latest")
 async def get_latest():
@@ -443,6 +491,21 @@ async def get_latest():
         if LAST_PACKET is None:
             return JSONResponse({"ok": False, "message": "no packet yet"})
         return JSONResponse({"ok": True, "packet": LAST_PACKET.to_dict()})
+
+
+@app.post("/api/override")
+async def receive_override(cmd: OverrideCommand):
+    """
+    接收前端 POST 回来的控制 JSON：
+      id / kind / x y z vx vy vz
+    """
+    print(
+        "[HTTP] override received: "
+        f"id={cmd.id}, kind={cmd.kind}, "
+        f"x={cmd.x}, y={cmd.y}, z={cmd.z}, "
+        f"vx={cmd.vx}, vy={cmd.vy}, vz={cmd.vz}"
+    )
+    return {"ok": True}
 
 
 # ================== WebSocket：/ws/parse ==================
@@ -453,6 +516,7 @@ async def ws_parse(ws: WebSocket):
     connected_clients.add(ws)
     print(f"[WS] client connected: {ws.client}")
 
+    # 新连接先推最近一条“有效控制变更”包
     with LOCK:
         pkt = LAST_PACKET
     if pkt is not None:

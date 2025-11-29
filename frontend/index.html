@@ -677,6 +677,7 @@
     const mav_edit_fields = document.getElementById('mav-edit-fields');
     const editMsgName = document.getElementById('mav-edit-msg-name');
     const editMsgId = document.getElementById('mav-edit-msg-id');
+    const btnMavSend = document.getElementById('btn-mav-send');
 
     // -------- 一些小工具函数 --------
     function appendLog(text) {
@@ -949,10 +950,67 @@
       };
     }
 
-    // 绑定按钮事件（这里只是示例，并未实现真实的发送逻辑）
     document.getElementById('btn-clear-log').onclick = () => {
         logBody.innerHTML = "";
     };
+
+    function readNumber(inputEl) {
+      if (!inputEl) return 0;
+      const v = parseFloat(inputEl.value);
+      return Number.isFinite(v) ? v : 0;
+    }
+
+    async function sendOverrideCommand() {
+      if (!btnMavSend) return;
+
+      const idRaw = editMsgId ? editMsgId.value.trim() : "";
+      const idVal = idRaw === "" ? NaN : parseInt(idRaw, 10);
+      if (!Number.isInteger(idVal)) {
+        appendLog("发送失败：消息 ID 不能为空或非整数");
+        return;
+      }
+
+      const payload = {
+        id: idVal,
+        kind: (editMsgName?.value || "").trim() || "UNKNOWN",
+        x: readNumber(mav_edit_x),
+        y: readNumber(mav_edit_y),
+        z: readNumber(mav_edit_z),
+        vx: readNumber(mav_edit_vx),
+        vy: readNumber(mav_edit_vy),
+        vz: readNumber(mav_edit_vz),
+      };
+
+      const prevText = btnMavSend.textContent;
+      btnMavSend.disabled = true;
+      btnMavSend.textContent = "发送中...";
+      try {
+        const res = await fetch("/api/override", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!data.ok) {
+          throw new Error(data.message || "后端返回失败");
+        }
+        appendLog(`已发送 override: id=${payload.id}, kind=${payload.kind}`);
+      } catch (err) {
+        appendLog(`发送 override 失败: ${err.message || err}`);
+      } finally {
+        btnMavSend.disabled = false;
+        btnMavSend.textContent = prevText;
+      }
+    }
+
+    if (btnMavSend) {
+      btnMavSend.addEventListener("click", () => {
+        sendOverrideCommand();
+      });
+    }
 
     connectWS();
   </script>
