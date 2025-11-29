@@ -598,6 +598,10 @@
     <div class="log">
       <div class="log-header">
         <span>日志</span>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#9ca3af;">
+          <input id="toggle-diff-refresh" type="checkbox" />
+          仅刷新不同包
+        </label>
         <button id="btn-clear-log" style="font-size:10px;padding:2px 8px;">清空日志</button>
       </div>
       <div id="log-body"></div>
@@ -609,6 +613,8 @@
     let ws;
     let packetCounter = 0;
     let oldPacketCounter = 0;
+    let onlyRefreshDiff = false;
+    let lastPacketKey = null;
 
     const wsStatusEl      = document.getElementById("ws-status");
     const packetCountEl   = document.getElementById("packet-count");
@@ -616,6 +622,7 @@
     const packetTsEl      = document.getElementById("packet-ts");
     const packetTableBody = document.getElementById("packet-table-body");
     const logBody         = document.getElementById("log-body");
+    const diffToggle      = document.getElementById("toggle-diff-refresh");
 
     const traditionalSection = document.getElementById("traditional-section");
     const mavlinkSection     = document.getElementById("mavlink-section");
@@ -687,6 +694,14 @@
       line.style.borderBottom = "1px solid #333";
       logBody.appendChild(line);
       logBody.parentElement.scrollTop = logBody.parentElement.scrollHeight;
+    }
+
+    if (diffToggle) {
+      diffToggle.addEventListener("change", () => {
+        onlyRefreshDiff = diffToggle.checked;
+        lastPacketKey = onlyRefreshDiff ? lastPacketKey : null;
+        appendLog(onlyRefreshDiff ? "仅刷新不同包" : "显示全部包");
+      });
     }
 
     function setWsStatus(text, ok = false) {
@@ -937,6 +952,12 @@
         const packet = data.packet || {};
         const app    = packet.application || {};
         const appProto = app.protocol || "";
+        const packetKey = JSON.stringify(packet);
+        if (onlyRefreshDiff && lastPacketKey !== null && packetKey === lastPacketKey) {
+          appendLog("重复包（未刷新，已启用“仅不同包”）");
+          return;
+        }
+        lastPacketKey = packetKey;
 
         updateTimestampNow();
         addPacketRowSimple(packet, appProto);
